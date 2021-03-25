@@ -3,32 +3,37 @@
 # Author: TNAR5
 # Version: 1
 
-CURRENT_USER = $(whoami)
+CURRENT_USER=$(whoami)
 
-if ! [($CURRENT_USER == 'root')];
-then echo "You must execute this script as root."
+if ! [[ $CURRENT_USER == "root" ]];then 
+echo "You must execute this script as root."
 exit 1
 fi
 
+echo "OS:" `uname -o`
 
 
-
-function ssh_lockdown{
-
+function ssh_lockdown()
+{
+echo "a"
 }
 
-function kernel_lockdown{
-
+function kernel_lockdown()
+{
+echo "b"
 }
 
-function lockout_policy{
-
+function lockout_policy()
+{
+echo "c"
 } 
 
-function remove_guest{
-
+function remove_guest()
+{
+echo "d"
 }
 
-function user_lockdown{
-
+function user_lockdown()
+{
+echo "e"
 }
