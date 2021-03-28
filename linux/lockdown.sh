@@ -167,7 +167,8 @@ function enable_av()
 		then
 			apt-get install -y clamav chkrootkit
 			ufw enable > /dev/null
-			success "ClamAV is now enabled."
+			freshclam
+			success "ClamAV is now enabled and updated."
 		fi
 	fi
 }
