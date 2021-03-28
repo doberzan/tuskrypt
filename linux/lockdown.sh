@@ -27,7 +27,7 @@ function success()
 
 function header()
 {
-	echo -e "$HEADER$1"
+	echo -e "$HEADER$1$NC"
 }
 
 
@@ -36,7 +36,7 @@ error "You must execute this script as root."
 exit 1
 fi
 
-echo "Linux lockdown script"
+header "Linux Lockdown Script"
 echo "Author........: TNAR5"
 echo "Version.......: 1.0"
 echo "OS............: $(uname -o)"
