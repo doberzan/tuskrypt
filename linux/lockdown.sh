@@ -200,7 +200,9 @@ function check_configs()
 			echo "nospoof on" >> /etc/hosts
 			vim /etc/hosts
 			vim /etc/crontab
-			read -p "[!] Make sure to set lightdm guest to false. (allow-guest = False)" -n 1 -r
+			echo "The following users have active crontabs:"
+			ls /var/spool/cron/crontabs
+			read -p "[!] Make sure to set lightdm guest to false and auto login is disabled. (allow-guest=False)" -n 1 -r
 			vim /etc/lightdm/lightdm.conf
 			printf "\n"
 			success "Finish config editing."
@@ -319,11 +321,14 @@ check_configs
 check_bad_programs
 find_media
 
-echo -e "\nThings left to do:"
-notify "Update kernel"
-notify "Pam cracklib password requirements"
-notify "Discover rootkits"
+header "\nThings left to do:"
+notify "~Update kernel"
+notify "Pam cracklib password requirements/logging"
+notify "Discover rootkits/backdoors"
 notify "Check file permissions"
+notify "Check init scripts"
+notify "Set GUI update options bc idk"
+notify "Web browser updates and security"
 notify "Win"
 
 success "Script finished exiting."
