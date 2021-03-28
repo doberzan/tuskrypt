@@ -4,6 +4,7 @@
 # Version: 1
 
 CURRENT_USER=$(logname)
+HEADER='\e[1m'
 RED='\033[0;31m'
 GREEN='\033[1;32m'
 YELLOW='\033[1;33m'
@@ -24,6 +25,10 @@ function success()
 	echo -e "$GREEN[+]$NC $1"
 }
 
+function header()
+{
+	echo -e "$HEADER$1"
+}
 
 
 if ! [[ $(whoami) == "root" ]];then 
@@ -37,6 +42,7 @@ echo "Version.......: 1.0"
 echo "OS............: $(uname -o)"
 echo "Executing User: $(logname)"
 
+printf "\n\n"
 
 read -p "[?] Have you read the README and the Forensics Questions? [y/n]" -n 1 -r
 echo
@@ -49,7 +55,7 @@ fi
 
 function ssh_lockdown()
 {	
-	printf "\nSSH Lockdown\n"
+	header "\nSSH Lockdown"
 	if dpkg --get-selections | grep -q "^openssh-server[[:space:]]*install$" >/dev/null;then
 		success "SSH is installed switching to secure config."
 		cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak
@@ -61,7 +67,7 @@ function ssh_lockdown()
 
 function kernel_lockdown()
 {
-	printf "\nKernel Lockdown\n"
+	header "\nKernel Lockdown"
 	success "Enabling secure Kernel options."
 	cp /etc/sysctl.conf /etc/sysctl.conf.bak
 	printf "net.ipv4.conf.default.rp_filter=1\nnet.ipv4.conf.all.rp_filter=1\nnet.ipv4.tcp_syncookies=1\nnet.ipv4.ip_forward=0\nnet.ipv4.conf.all.accept_redirects=0\nnet.ipv6.conf.all.accept_redirects=0\nnet.ipv4.conf.all.send_redirects=0\nnet.ipv4.conf.all.accept_source_route=0\nnet.ipv6.conf.all.accept_source_route=0\nnet.ipv4.conf.all.log_martians=1\nnet.ipv4.icmp_echo_ignore_broadcasts=1\nnet.ipv6.conf.all.disable_ipv6=0\nnet.ipv6.conf.default.disable_ipv6=0\nnet.ipv6.conf.lo.disable_ipv6=1\nkernel.core_uses_pid=1\nkernel.sysrq=0" > /etc/sysctl.conf
@@ -75,7 +81,7 @@ echo "c"
 
 function user_lockdown()
 {
-	printf "\nUser Lockdown\n"
+	header "\nUser Lockdown"
 	notify "Starting interactive user lockdown."
 	success "Backup user list /home/$CURRENT_USER/users.txt"
 	getent passwd | grep "home" | cut -d ':' -f 1 > /home/$CURRENT_USER/users.txt
@@ -124,8 +130,7 @@ function user_lockdown()
 		fi
 	done
 	read -p "[?] Press any key to check sudoers." -n 1 -r
-	success "Launching visudo."
-	printf "\n"
+	success "\nLaunching visudo."
 	visudo
 	printf "\n"
 	
@@ -134,7 +139,7 @@ function user_lockdown()
 
 function enable_ufw()
 {
-	printf "\nFirewall Lockdown\n"
+	header "\nFirewall Lockdown"
 	command -v ufw >/dev/null
 	if [ $? -eq 0 ];then
 		success "UFW found enableing firewall."
@@ -154,7 +159,7 @@ function enable_ufw()
 
 function enable_av()
 {
-	printf "\nAnti-Virus lockdown\n"
+	header "\nAnti-Virus lockdown"
 	command -v clamscan >/dev/null
 	if [ $? -eq 0 ];then
 		success "ClamAV found."
@@ -175,7 +180,7 @@ function enable_av()
 
 function ask_to_install_updates()
 {
-	printf "\nInstalling Updates\n"
+	header "\nInstalling Updates"
 	read -p "[?] Would you like to install updates? [y/n] " -n 1 -r
 	echo
 	if [[ $REPLY =~ ^[Yy]$ ]]
@@ -205,7 +210,7 @@ function check_configs()
 
 function check_bad_programs()
 {
-	echo -e "\nChecking for 'bad' programs."
+	header 	"\nChecking for 'bad' programs."
 	if dpkg --get-selections | grep -q "^nmap[[:space:]]*install$" >/dev/null;then
 		notify "Nmap is installed, removing."
 		#apt-get purge nmap
@@ -255,39 +260,52 @@ function check_bad_programs()
 	if dpkg --get-selections | grep -q "^nginx[[:space:]]*install$" >/dev/null;then
 		notify "Nginx is installed, make sure this is a required service."
 	fi
-<<<<<<< HEAD
-=======
 	if dpkg --get-selections | grep -q "^telnet[[:space:]]*install$" >/dev/null;then
 		notify "Telnet is installed, make sure this is a required service."
 	fi
->>>>>>> dcaff9d9246b8db1a768f9f2ccd96a46d723f955
 	success "Displaying other active services:"
 	service --status-all | grep '+'
+	echo ""
 }
 
 function find_media()
 {
-	notify "Checking for media files on the system and outputing to file."
+	chkdir="/home/"
+	dmpfile="/home/${CURRENT_USER}/media_files.txt"
+	sarray=()	
+	header "Checking for media files in ${chkdir}"
 	success "Checking txt files."
-	find . -type f -name "*.txt" 
+	echo "">$dmpfile
+	sarray=($(find $chkdir -type f -name "*.txt" | tee -a $dmpfile))
+	echo "Found ${#sarray[@]}"
 	success "Checking mp4 files."
-	find . -type f -name "*.mp4"
+	sarray=($(find $chkdir -type f -name "*.mp4" | tee -a  $dmpfile))
+	echo "Found ${#sarray[@]}"
 	success "Checking mp3 files."
-	find . -type f -name "*.mp3" 
+	sarray=($(find $chkdir -type f -name "*.mp3" | tee -a  $dmpfile))
+	echo "Found ${#sarray[@]}"	
 	success "Checking ogg files."
-	find . -type f -name "*.ogg"
+	sarray=($(find $chkdir -type f -name "*.ogg" | tee -a $dmpfile))
+	echo "Found ${#sarray[@]}"
 	success "Checking wav files."
-	find . -type f -name "*.wav" 
+	sarray=($(find $chkdir -type f -name "*.wav" | tee -a $dmpfile))
+	echo "Found ${#sarray[@]}"
 	success "Checking png files."
-	find . -type f -name "*.png"
+	sarray=($(find $chkdir -type f -name "*.png" | tee -a  $dmpfile))
+	echo "Found ${#sarray[@]}"
 	success "Checking jpg files."
-	find . -type f -name "*.jpg"
-	find . -type f -name "*.jpeg" 
+	sarray=($(find $chkdir -type f -name "*.jpg" | tee -a  $dmpfile))
+	echo "Found ${#sarray[@]} jpg"	
+	sarray=($(find $chkdir -type f -name "*.jpeg" | tee -a  $dmpfile)) 
+	echo "Found ${#sarray[@]} jpeg"
 	success "Checking gif files."
-	find . -type f -name "*.gif"
+	sarray=($(find $chkdir -type f -name "*.gif" | tee -a  $dmpfile))
+	echo "Found ${#sarray[@]}"	
 	success "Checking mov files."
-	find . -type f -name "*.mov"
-	
+	sarray=($(find $chkdir -type f -name "*.mov" | tee -a  $dmpfile))
+	echo "Found ${#sarray[@]}"
+	printf "\n"
+	notify "Saving file paths to ${dmpfile}"	
 	
 }
 
@@ -306,7 +324,6 @@ notify "Update kernel"
 notify "Pam cracklib password requirements"
 notify "Discover rootkits"
 notify "Check file permissions"
-notify "Check for media files, mp4, mp3, ogg, wav, png, jpg, jpeg, gif, mov, txt, "
 notify "Win"
 
 success "Script finished exiting."
