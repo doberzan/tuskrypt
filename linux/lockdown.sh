@@ -163,7 +163,8 @@ function enable_av()
 	command -v clamscan >/dev/null
 	if [ $? -eq 0 ];then
 		success "ClamAV found."
-		ufw enable > /dev/null
+		freshclam
+		success "Updated definitions."
 	else
 		error "ClamAV not installed."
 		read -p "[?] Would you like to install ClamAV and chkrootkit? [y/n] " -n 1 -r
