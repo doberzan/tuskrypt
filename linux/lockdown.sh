@@ -9,16 +9,6 @@ GREEN='\033[1;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-if ! [[ $CURRENT_USER == "root" ]];then 
-echo "You must execute this script as root."
-exit 1
-fi
-
-echo "Linux lockdown script"
-echo "Author: TNAR5"
-echo "Version: 1"
-echo "OS:" `uname -o`
-
 function warn()
 {
 	echo -e "$YELLOW[!]$NC $1"
@@ -34,6 +24,27 @@ function success()
 	echo -e "$GREEN[+]$NC $1"
 }
 
+
+
+if ! [[ $CURRENT_USER == "root" ]];then 
+error "You must execute this script as root."
+exit 1
+fi
+
+echo "Linux lockdown script"
+echo "Author: TNAR5"
+echo "Version: 1"
+echo "OS:" `uname -o`
+
+
+read -p "[?] Have you read the README and the Forensics Questions? [y/n]" -n 1 -r
+echo
+if [[ $REPLY =~ ^[Nn]$ ]]
+then
+	error "Please read the files on the desktop to make sure that the script is not messing with anything essential."
+fi
+
+
 function ssh_lockdown()
 {	
 	printf "\nSSH Lockdown\n"
@@ -47,7 +58,7 @@ function ssh_lockdown()
 }
 
 function kernel_lockdown()
-{	
+{
 	printf "\nKernel Lockdown\n"
 	success "Enabling secure Kernel options."
 	cp /etc/sysctl.conf /etc/sysctl.conf.bak
@@ -59,11 +70,6 @@ function lockout_policy()
 {
 echo "c"
 } 
-
-function remove_guest()
-{
-echo "d"
-}
 
 function user_lockdown()
 {
