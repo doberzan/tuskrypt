@@ -173,6 +173,7 @@ function ask_to_install_updates()
 	then
 		apt-get update
 		apt-get upgrade
+		apt-get dist-upgrade
 	fi
 }
 
@@ -224,6 +225,10 @@ function check_bad_programs()
 		warn "Hashcat is installed, removing."
 		#apt-get purge hashcat
 	fi
+	if dpkg --get-selections | grep -q "^telnet[[:space:]]*install$" >/dev/null;then
+		warn "Telnet is installed, removing."
+		#apt-get purge telnet
+	fi
 	#apt-get purge netcat*
 
 	if dpkg --get-selections | grep -q "^samba[[:space:]]*install$" >/dev/null;then
@@ -240,9 +245,6 @@ function check_bad_programs()
 	fi
 	if dpkg --get-selections | grep -q "^nginx[[:space:]]*install$" >/dev/null;then
 		warn "Nginx is installed, make sure this is a required service."
-	fi
-	if dpkg --get-selections | grep -q "^telnet[[:space:]]*install$" >/dev/null;then
-		warn "Telnet is installed, make sure this is a required service."
 	fi
 	success "Displaying other active services:"
 	service --status-all | grep '+'
