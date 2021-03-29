@@ -314,7 +314,7 @@ function find_media()
 }
 
 
-if [[ $1 -eq 'a' ]];then
+if [ $1 -eq 'a' ];then
 success "Running in auto script mode."
 ssh_lockdown
 enable_ufw
