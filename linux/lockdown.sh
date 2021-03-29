@@ -130,7 +130,8 @@ function user_lockdown()
 		fi
 	done
 	read -p "[?] Press any key to check sudoers." -n 1 -r
-	success "\nLaunching visudo."
+	echo ""
+	success "Launching visudo."
 	visudo
 	printf "\n"
 	
