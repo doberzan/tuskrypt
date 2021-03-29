@@ -151,7 +151,7 @@ function enable_ufw()
 		echo
 		if [[ $REPLY =~ ^[Yy]$ ]]
 		then
-			apt-get install ufw
+			apt-get install -y ufw
 			ufw enable > /dev/null
 			success "UFW is now enabled."
 		fi
@@ -188,8 +188,8 @@ function ask_to_install_updates()
 	if [[ $REPLY =~ ^[Yy]$ ]]
 	then
 		apt-get update
-		apt-get upgrade
-		apt-get dist-upgrade
+		apt-get upgrade -y
+		apt-get dist-upgrade -y
 	fi
 }
 
@@ -321,6 +321,7 @@ enable_ufw
 enable_av
 kernel_lockdown
 check_bad_programs
+#ask_to_install_updates
 find_media
 else
 ssh_lockdown
@@ -329,8 +330,8 @@ enable_av
 kernel_lockdown
 user_lockdown
 check_configs
-#ask_to_install_updates
 check_bad_programs
+#ask_to_install_updates
 find_media
 fi
 
