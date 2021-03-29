@@ -313,6 +313,16 @@ function find_media()
 	
 }
 
+if [ $1 -eq 'a']
+then
+success "Running in auto script mode."
+ssh_lockdown
+enable_ufw
+enable_av
+kernel_lockdown
+check_bad_programs
+find_media
+else
 ssh_lockdown
 enable_ufw
 enable_av
@@ -322,6 +332,7 @@ check_configs
 #ask_to_install_updates
 check_bad_programs
 find_media
+fi
 
 header "\nThings left to do:"
 notify "~Update kernel"
