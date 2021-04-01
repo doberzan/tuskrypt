@@ -94,6 +94,7 @@ function user_lockdown()
 		if [[ $REPLY =~ ^[Nn]$ ]]
 		then
 			#userdel $u
+			#groupdel $u
 			success "${u} has been removed."
 		else
 			read -p "[?] Would you like to change their password? [y/n]" -n 1 -r
@@ -341,8 +342,9 @@ notify "Pam cracklib password requirements/logging"
 notify "Discover rootkits/backdoors"
 notify "Check file permissions"
 notify "Check init scripts"
-notify "Set GUI update options bc idk"
+notify "Set GUI update options for package manager bc idk"
 notify "Web browser updates and security"
+notify "ADD USERS NOT IN THE LIST"
 notify "Win"
 
 success "Script finished exiting."
