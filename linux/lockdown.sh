@@ -30,10 +30,9 @@ function header()
 	echo -e "$HEADER$1$NC"
 }
 
-
-if ! [[ $(whoami) == "root" ]];then 
-error "You must execute this script as root."
-exit 1
+if [ "$EUID" -ne 0 ]
+  then echo "Please run as root"
+  exit
 fi
 
 header "Linux Lockdown Script"
