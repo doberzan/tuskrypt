@@ -30,10 +30,9 @@ function header()
 	echo -e "$HEADER$1$NC"
 }
 
-
-if ! [[ $(whoami) == "root" ]];then 
-error "You must execute this script as root."
-exit 1
+if [ "$EUID" -ne 0 ]
+  then echo "Please run as root"
+  exit
 fi
 
 header "Linux Lockdown Script"
@@ -93,8 +92,8 @@ function user_lockdown()
 		echo
 		if [[ $REPLY =~ ^[Nn]$ ]]
 		then
-			#userdel $u
-			#groupdel $u
+			userdel $u
+			groupdel $u
 			success "${u} has been removed."
 		else
 			read -p "[?] Would you like to change their password? [y/n]" -n 1 -r
@@ -112,7 +111,7 @@ function user_lockdown()
 				then 
 					success "User is an Administrator - no change."
 				else
-					#usermod -aG sudo $u
+					usermod -aG sudo $u
 					success "User was added to the sudo group."
 				fi
 			else
@@ -120,7 +119,7 @@ function user_lockdown()
 				if [ $? -eq 0 ];
 				then 
 					notify "User was an Administrator."
-					#deluser $u sudo
+					deluser $u sudo
 					success "Removed ${u} from sudo group."
 				else
 					success "User is not an Administrator - no change."
@@ -218,37 +217,37 @@ function check_bad_programs()
 	header 	"\nChecking for 'bad' programs."
 	if dpkg --get-selections | grep -q "^nmap[[:space:]]*install$" >/dev/null;then
 		notify "Nmap is installed, removing."
-		#apt-get purge nmap
+		apt-get purge nmap
 	fi
 	if dpkg --get-selections | grep -q "^john[[:space:]]*install$" >/dev/null;then
 		notify "John is installed, removing."
-		#apt-get purge john
+		apt-get purge john
 	fi
 	if dpkg --get-selections | grep -q "^rainbowcrack[[:space:]]*install$" >/dev/null;then
 		notify "rainbowcrack is installed, removing."
-		#apt-get purge rainbowcrack
+		apt-get purge rainbowcrack
 	fi
 	if dpkg --get-selections | grep -q "^ophcrack[[:space:]]*install$" >/dev/null;then
 		notify "Ophcrack is installed, removing."
-		#apt-get purge ophcrack
+		apt-get purge ophcrack
 	fi
 	if dpkg --get-selections | grep -q "^nc[[:space:]]*install$" >/dev/null;then
 		notify "Nc is installed, removing."
-		#apt-get purge nc
+		apt-get purge nc
 	fi
 	if dpkg --get-selections | grep -q "^netcat[[:space:]]*install$" >/dev/null;then
 		notify "Netcat is installed, removing."
-		#apt-get purge netcat
+		apt-get purge netcat
 	fi
 	if dpkg --get-selections | grep -q "^hashcat[[:space:]]*install$" >/dev/null;then
 		notify "Hashcat is installed, removing."
-		#apt-get purge hashcat
+		apt-get purge hashcat
 	fi
 	if dpkg --get-selections | grep -q "^telnet[[:space:]]*install$" >/dev/null;then
 		warn "Telnet is installed, removing."
-		#apt-get purge telnet
+		apt-get purge telnet
 	fi
-	#apt-get purge netcat*
+	apt-get purge netcat*
 
 	if dpkg --get-selections | grep -q "^samba[[:space:]]*install$" >/dev/null;then
 		notify "Samba is installed, make sure this is a required service."
@@ -322,7 +321,7 @@ enable_ufw
 enable_av
 kernel_lockdown
 check_bad_programs
-#ask_to_install_updates
+ask_to_install_updates
 find_media
 else
 ssh_lockdown
@@ -332,7 +331,7 @@ kernel_lockdown
 user_lockdown
 check_configs
 check_bad_programs
-#ask_to_install_updates
+ask_to_install_updates
 find_media
 fi
 
