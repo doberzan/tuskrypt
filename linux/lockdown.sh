@@ -1,15 +1,21 @@
 #!/bin/bash
-# Discription: Linux lockdown script
-# Author: TNAR5
-# Version: 1
+# Description: Linux lockdown script
+# Authors: TNAR5, colonket, ferdinand
+# Version: 1.3
+# Competitions:
+#	- Hivestorm 2020, 2021 
+#	- Southwest CCDC Regionals 2022
+#	- Southwest CCDC Regionals 2023
 
-CURRENT_USER=$(logname)
+# Text Colors
 HEADER='\e[1m'
 RED='\033[0;31m'
 GREEN='\033[1;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
+PURPLE='\033[1;35m'
 
+# Operators
 function notify()
 {
 	echo -e "$YELLOW[!]$NC $1"
@@ -30,134 +36,435 @@ function header()
 	echo -e "$HEADER$1$NC"
 }
 
-if [ "$EUID" -ne 0 ]
-  then echo "Please run as root"
-  exit
-fi
-
-header "Linux Lockdown Script"
-echo "Author........: TNAR5"
-echo "Version.......: 1.0"
-echo "OS............: $(uname -o)"
-echo "Executing User: $(logname)"
-
-printf "\n\n"
-
-read -p "[?] Have you read the README and the Forensics Questions? [y/n]" -n 1 -r
-echo
-if [[ $REPLY =~ ^[Nn]$ ]]
-then
-	error "Please read the files on the desktop to make sure that the script is not messing with anything essential."
-	exit 1
-fi
+function heart()
+{
+	echo -e "$PURPLE[<3]$NC $1"
+}
 
 
+# Main functions
+
+# Disable aliases (they can be tricky)
+function disable_aliases()
+{
+	header "\nDisable Aliases"
+	read -p "[?] Do you want to disable aliases (persistent)? [y/N] " -n 1 -r
+	echo
+	if [[ $REPLY =~ ^[Yy]$ ]]
+	then
+		unalias -a 
+		grep -qxF 'unalias -a' $HOME/.bashrc || echo 'unalias -a' >> $HOME/.bashrc
+		success "Aliases disabled, added to .bashrc for persistence."
+	fi
+}
+
+# Choose preferred text editor
+function choose_editor()
+{
+	header "\nChoose Text Editor"
+	read -p "[?] Do you want to choose your text editor? [y/N] " -n 1 -r
+	echo
+	if [[ $REPLY =~ ^[Yy]$ ]]
+	then
+		update-alternatives --config editor
+	fi
+}
+
+# Offline - Modify config
 function ssh_lockdown()
-{	
+{
 	header "\nSSH Lockdown"
 	if dpkg --get-selections | grep -q "^openssh-server[[:space:]]*install$" >/dev/null;then
-		success "SSH is installed switching to secure config."
+		success "SSH is installed, switching to secure config."
+		notify "Backup created at /etc/ssh/sshd_config.bak"
 		cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak
 		printf "Port 22\nPermitRootLogin no\nListenAddress 0.0.0.0\nMaxAuthTries 3\nMaxSessions 1\nPubkeyAuthentication yes\nPermitEmptyPasswords no\nUsePAM yes\nPrintMotd yes\nAcceptEnv LANG LC_*\nSubsystem\tsftp\t/usr/lib/openssh/sftp-server" > /etc/ssh/sshd_config
 	else
-		error "SSH is not installed."
+		error "SSH is not installed, skipping lockdown."
 	fi
 }
 
+# Offline - Modify kernel
 function kernel_lockdown()
 {
 	header "\nKernel Lockdown"
-	success "Enabling secure Kernel options."
+	read -p "[?] Do you want to secure kernel options? [y/N] " -n 1 -r
+	echo
+	if [[ $REPLY =~ ^[Yy]$ ]]
+	then
 	cp /etc/sysctl.conf /etc/sysctl.conf.bak
+	notify "Backup created at /etc/sysctl.conf.bak"
 	printf "net.ipv4.conf.default.rp_filter=1\nnet.ipv4.conf.all.rp_filter=1\nnet.ipv4.tcp_syncookies=1\nnet.ipv4.ip_forward=0\nnet.ipv4.conf.all.accept_redirects=0\nnet.ipv6.conf.all.accept_redirects=0\nnet.ipv4.conf.all.send_redirects=0\nnet.ipv4.conf.all.accept_source_route=0\nnet.ipv6.conf.all.accept_source_route=0\nnet.ipv4.conf.all.log_martians=1\nnet.ipv4.icmp_echo_ignore_broadcasts=1\nnet.ipv6.conf.all.disable_ipv6=0\nnet.ipv6.conf.default.disable_ipv6=0\nnet.ipv6.conf.lo.disable_ipv6=1\nkernel.core_uses_pid=1\nkernel.sysrq=0" > /etc/sysctl.conf
 	sysctl -w kernel.randomize_va_space=2 >/dev/null;sysctl -w net.ipv4.conf.default.rp_filter=1>/dev/null;sysctl -w net.ipv4.conf.all.rp_filter=1>/dev/null;sysctl -w net.ipv4.tcp_syncookies=1>/dev/null;sysctl -w net.ipv4.ip_forward=0>/dev/null;sysctl -w net.ipv4.conf.all.accept_redirects=0>/dev/null;sysctl -w net.ipv6.conf.all.accept_redirects=0>/dev/null;sysctl -w net.ipv4.conf.all.send_redirects=0>/dev/null;sysctl -w net.ipv4.conf.all.accept_source_route=0>/dev/null;sysctl -w net.ipv6.conf.all.accept_source_route=0>/dev/null;sysctl -w net.ipv4.conf.all.log_martians=1>/dev/null;
+	success "Enabled secure kernel options."
+	fi
+
 }
 
-function lockout_policy()
-{
-echo "c"
-} 
-
+# Offline - Modify users
 function user_lockdown()
 {
 	header "\nUser Lockdown"
-	notify "Starting interactive user lockdown."
-	success "Backup user list /home/$CURRENT_USER/users.txt"
-	getent passwd | grep "home" | cut -d ':' -f 1 > /home/$CURRENT_USER/users.txt
-	users=($(getent passwd | grep "home" | cut -d ':' -f 1))
-	success "Found "${#users[@]}" users."
-	for u in "${users[@]}"
-	do
-		read -p "[?] Is user ${u} authorized to be on the system? [y/n] " -n 1 -r
+	read -p "[?] Do you want to lockdown human users? [y/N] " -n 1 -r
+	echo
+	if [[ $REPLY =~ ^[Yy]$ ]]
+	then
+		notify "Starting interactive user lockdown."
+		success "User list saved to $HOME/users.txt"
+		users=($(awk -F ':' '$3>=1000 {print $i}' /etc/passwd | cut -d':' -f1))
+		
+		printf "%s\n" "${users[@]}" > $HOME/users.txt
+		success "Found "${#users[@]}" human users."
 		echo
-		if [[ $REPLY =~ ^[Nn]$ ]]
-		then
-			userdel $u
-			groupdel $u
-			success "${u} has been removed."
-		else
-			read -p "[?] Would you like to change their password? [y/n]" -n 1 -r
+
+		password="changeMe!123"
+
+		#read -p "[?] HIVESTORM ONLY Do you want to set every user's password to '$password'? [y/N]" -n 1 -r
+		#echo
+		#if [[ $REPLY =~ ^[Yy]$ ]]
+		#then
+		#	for u in "${users[@]}"
+		#	do
+		#		# passwd asks to enter new password twice
+		#		echo -e "$password\n$password" | passwd $u
+		#		success "Changed user $u's password to $password"
+		#		echo
+		#	done
+		#fi
+
+		for u in "${users[@]}"
+		do
+			read -p "[?] Modify user $u ? [y/N]" -n 1 -r
 			echo
 			if [[ $REPLY =~ ^[Yy]$ ]]
 			then
-				passwd $u
-			fi
-			read -p "[?] Is this user an administrator? [y/n]" -n 1 -r
-			echo
-			if [[ $REPLY =~ ^[Yy]$ ]]
-			then
-				groups $u | grep "sudo" > /dev/null
-				if [ $? -eq 0 ];
-				then 
-					success "User is an Administrator - no change."
+				header "Editing user: $u"
+				read -p "[?] Remove user $u ? [y/N] " -n 1 -r
+				echo
+				if [[ $REPLY =~ ^[Yy]$ ]]
+				then
+				 	if [[ $u == $SUDO_USER ]]
+					then
+					 	error "You are $u, cannot remove yourself!"
+					else
+						userdel $u
+						groupdel $u
+						success "$u has been removed."
+					fi
 				else
-					usermod -aG sudo $u
-					success "User was added to the sudo group."
+					read -p "[?] Change $u's password? [y/N]" -n 1 -r
+					echo
+					if [[ $REPLY =~ ^[Yy]$ ]]
+					then
+						passwd $u
+						success "$u's password changed."
+					else
+						notify "Did not change $u's password"
+					fi
+					
+					read -p "[?] Lock $u's account to prevent login? [y/N]" -n 1 -r
+					echo
+					if [[ $REPLY =~ ^[Yy]$ ]]
+					then
+						passwd -l $u
+						success "User $u locked."
+					else
+						notify "Did not lock $u's account"
+					fi
+
+
+					read -p "[?] Should $u be an administrator (in sudo)? [y/N]" -n 1 -r
+					echo
+					if [[ $REPLY =~ ^[Yy]$ ]]
+					then
+						groups $u | grep "sudo" > /dev/null
+						if [ $? -eq 0 ];
+						then
+							success "User $u is already an administrator - no change."
+						else
+							usermod -aG sudo $u
+							success "User $u was added to the sudo group."
+						fi
+					else
+						groups $u | grep "sudo" > /dev/null
+						if [ $? -eq 0 ];
+						then
+							notify "User $u was an Administrator."
+							deluser $u sudo
+							success "Removed $u from sudo group."
+						else
+							success "User $u is already not an administrator - no change."
+						fi
+					fi
 				fi
-			else
-				groups $u | grep "sudo" > /dev/null
-				if [ $? -eq 0 ];
-				then 
-					notify "User was an Administrator."
-					deluser $u sudo
-					success "Removed ${u} from sudo group."
-				else
-					success "User is not an Administrator - no change."
-				fi			
 			fi
-			
-
-		fi
-	done
-	read -p "[?] Press any key to check sudoers." -n 1 -r
-	echo ""
-	success "Launching visudo."
-	visudo
+		done
+	fi
+	success "All user modifications complete."
+	read -p "[?] Do you want to check /etc/sudoers? [y/N] " -n 1 -r
+	echo
+	if [[ $REPLY =~ ^[Yy]$ ]]
+	then
+		read -p "Press any key to check sudoers." -n 1 -r
+		echo
+		success "Launching visudo."
+		visudo
+	fi
 	printf "\n"
-	
-
+	success "User lockdown complete."
 }
 
-function enable_ufw()
+# Offline - Modify Configs
+function check_configs()
 {
-	header "\nFirewall Lockdown"
-	command -v ufw >/dev/null
-	if [ $? -eq 0 ];then
-		success "UFW found enableing firewall."
-		ufw enable > /dev/null
-	else
-		error "UFW not installed."
-		read -p "[?] Would you like to install ufw? [y/n] " -n 1 -r
+	header "\nCheck Configs"
+	read -p "[?] Would you like to check config files? [y/N] " -n 1 -r
+	echo
+	if [[ $REPLY =~ ^[Yy]$ ]]
+	then
+		#grep -qxF 'nospoof on' /etc/host.conf || echo 'nospoof on' >> /etc/host.conf  # obsolete?
+		sudoedit /etc/hosts
+		sudoedit /etc/crontab
+		echo "The following users have active crontabs:"
+		ls /var/spool/cron/crontabs
 		echo
-		if [[ $REPLY =~ ^[Yy]$ ]]
-		then
-			apt-get install -y ufw
-			ufw enable > /dev/null
-			success "UFW is now enabled."
-		fi
+		notify "Make sure to set lightdm guest to false and if asked to, disable auto-login. (allow-guest=False)"
+		read -p "[?] Press any key to check /etc/lightdm/lightdm.conf" -n 1 -r
+		echo
+		grep -qxF 'allow-guest=False' /etc/lightdm/lightdm.conf || echo 'allow-guest=False' >> /etc/lightdm/lightdm.conf
+		sudoedit /etc/lightdm/lightdm.conf
+		printf "\n"
+		success "Finish config editing."
 	fi
 }
 
+# Offline - Remove packages
+function check_bad_programs()
+{
+	declare -a bad=(
+		"aircrack-ng"
+		"airgeddon"
+		"amass"
+		"arjun"
+		"armitage"
+		"arping"
+		"autopsy"
+		"bed"
+		"beef-xss"
+		"binwalk"
+		"bloodhound"
+		"btscanner"
+		"bully"
+		"burpsuite"
+		"cadaver"
+		"chisel"
+		"chntpw"
+		"cmospwd"
+		"commix"
+		"crackmapexec"
+		"crunch"
+		"cupp3"
+		"dirb"
+		"dirbuster"
+		"dirsearch"
+		"dmitry"
+		"dnsmap"
+		"dnsrecon"
+		"driftnet"
+		"enum4linux"
+		"evil-winrm"
+		"exploitdb"
+		"eyewitness"
+		"fcrackzip"
+		"fern-wifi-cracker"
+		"ffuf"
+		"fierce"
+		"foremost"
+		"gobuster"
+		"goldeneye"
+		"hashcat"
+		"hping3"
+		"hydra"
+		"ike-scan"
+		"impacket-scripts"
+		"john"
+		"johnny"
+		"kismet"
+		"legion"
+		"macchanger"
+		"maltego"
+		"masscan"
+		"mdk3"
+		"mdk4"
+		"medusa"
+		"metagoofil"
+		"mimikatz"
+		"nbtscan"
+		"nc"
+		"ncrack"
+		"netcat"
+		"netdiscover"
+		"nikto"
+		"nmap"
+		"nuclei"
+		"ophcrack"
+		"p0f"
+		"parsero"
+		"rainbowcrack"
+		"reaver"
+		"recon-ng"
+		"responder"
+		"routersploit"
+		"scapy"
+		"shellter"
+		"sherlock"
+		"smbmap"
+		"socat"
+		"spiderfoot"
+		"sqlmap"
+		"sslscan"
+		"sslstrip"
+		"steghide"
+		"sublist3r"
+		"tcpdump"
+		"telnet"
+		"theharvester"
+		"veil"
+		"wafw00f"
+		"wfuzz"
+		"whatweb"
+		"wifiphisher"
+		"wifite"
+		"wireshark"
+		"wpscan"
+		"yersinia"
+	)
+
+	declare -a possibly_bad=(
+		"samba"
+		"bind9"
+		"vsftpd"
+		"apache2"
+		"nginx"
+		"telnet"
+	)
+
+	header  "\nChecking for 'bad' programs."
+	read -p "[?] Would you like to check for bad programs? [y/N] " -n 1 -r
+	echo
+	if [[ $REPLY =~ ^[Yy]$ ]]
+	then
+		header "Checking netcat variants..."
+		apt-get purge netcat-*   # Removes any alternative netcat packages
+
+		# Remove bad programs
+		header "Checking bad programs..."
+		for b in "${bad[@]}"
+		do
+			if dpkg --get-selections | grep -q "^$b[[:space:]]*install$" >/dev/null;then
+				notify "$b is installed, remove?"
+				apt-get purge $b
+			fi
+		done
+		success "Checking bad programs done."
+		
+		# Notify of any bad programs that may be a required service
+		header "Checking potentially bad programs..."
+		for pb in "${possibly_bad[@]}"
+		do
+			if dpkg --get-selections | grep -q "^$pb[[:space:]]*install$" >/dev/null;then
+				notify "$pb is installed, remove/disable if not a required service."
+			fi
+		done
+		success "Checking potentially bad programs done."
+	fi
+}
+
+function check_services()
+{
+	header "\nServices"
+	read -p "[?] List enabled services? [y/N] " -n 1 -r
+	echo
+	if [[ $REPLY =~ ^[Yy]$ ]]
+	then
+		success "Displaying enabled services:"
+		service --status-all | grep '+'
+	fi
+	echo
+
+	read -p "[?] List active network connections? [y/N] " -n 1 -r
+	echo
+	if [[ $REPLY =~ ^[Yy]$ ]]
+	then
+		success "Displaying active network connections with 'lsof -nP -i':"
+		lsof -nP -i
+	fi
+	echo
+}
+
+# Forensics / Hivestorm
+function find_media()
+{
+	header "\nMedia files"
+	read -p "[?] Find prohibited media files? [y/N] " -n 1 -r
+	echo
+	if [[ $REPLY =~ ^[Yy]$ ]]
+	then
+		chkdir="/home/"
+		dmpfile="$HOME/media_files.txt"
+		sarray=()
+		header "Checking for media files in ${chkdir}"
+		touch $dmpfile
+		declare -a extensions=(
+			"avi"
+			"flac"
+			"gif"
+			"ico"
+			"jpeg"
+			"jpg"
+			"m4a"
+			"m4b"
+			"mid"
+			"midi"
+			"mov"
+			"movi"
+			"mp3"
+			"mp4"
+			"mpeg"
+			"mpg"
+			"ogg"
+			"png"
+			"svg"
+			"txt"
+			"wav"
+			"wmv"
+		)
+		for i in "${extensions[@]}"
+		do
+			sarray=($(find $chkdir -type f -name "*.$i" | tee -a $dmpfile))
+			echo "[*] Checking $i files - Found ${#sarray[@]}"
+		done
+		printf "\n"
+		notify "Saving file paths to ${dmpfile}"
+	fi
+
+}
+
+# Online - Updating packages
+function install_updates()
+{
+	header "\nInstalling Updates"
+	read -p "[?] Would you like to install updates? [y/N] " -n 1 -r
+	echo
+	if [[ $REPLY =~ ^[Yy]$ ]]
+	then
+		apt-get update
+		apt-get upgrade -y
+		#apt-get dist-upgrade -y  # probably not recommended?
+	fi
+}
+
+# Online - Installing AV
 function enable_av()
 {
 	header "\nAnti-Virus lockdown"
@@ -168,183 +475,185 @@ function enable_av()
 		success "Updated definitions."
 	else
 		error "ClamAV not installed."
-		read -p "[?] Would you like to install ClamAV and chkrootkit? [y/n] " -n 1 -r
+		read -p "[?] Would you like to install ClamAV? [y/N] " -n 1 -r
 		echo
 		if [[ $REPLY =~ ^[Yy]$ ]]
 		then
-			apt-get install -y clamav chkrootkit
-			ufw enable > /dev/null
+			apt-get install -y clamav
 			freshclam
 			success "ClamAV is now enabled and updated."
 		fi
 	fi
 }
 
-function ask_to_install_updates()
+# Online - rkhunter
+function check_rootkits()
 {
-	header "\nInstalling Updates"
-	read -p "[?] Would you like to install updates? [y/n] " -n 1 -r
-	echo
-	if [[ $REPLY =~ ^[Yy]$ ]]
-	then
-		apt-get update
-		apt-get upgrade -y
-		apt-get dist-upgrade -y
-	fi
-}
-
-function check_configs()
-{
-	read -p "[?] Would you like to check random system config files? [y/n] " -n 1 -r
+	header "\nChecking for rootkits (rkhunter)"
+	command -v rkhunter >/dev/null
+	if [ $? -eq 0 ];then
+		success "rkhunter found."
+		rkhunter --update
+		rkhunter --propupd
+		success "Updated definitions."
+	else
+		error "rkhunter not installed."
+		read -p "[?] Would you like to install rkhunter? [y/N] " -n 1 -r
 		echo
 		if [[ $REPLY =~ ^[Yy]$ ]]
 		then
-			echo "nospoof on" >> /etc/hosts
-			vim /etc/hosts
-			vim /etc/crontab
-			echo "The following users have active crontabs:"
-			ls /var/spool/cron/crontabs
-			read -p "[!] Make sure to set lightdm guest to false and auto login is disabled. (allow-guest=False)" -n 1 -r
-			vim /etc/lightdm/lightdm.conf
-			printf "\n"
-			success "Finish config editing."
+			apt-get install -y rkhunter
+			rkhunter --update
+			rkhunter --propupd
+			rkhunter -c --enable all --disable none
+			cat /var/log/rkhunter.log | grep "Warning"
+
+			success "Rkhunter scan finished. Check /var/log/rkhunter.log and grep for \"Warning\" to see results"
 		fi
-
+	fi
 }
 
-function check_bad_programs()
+# Online - Installing ufw
+function enable_ufw()
 {
-	header 	"\nChecking for 'bad' programs."
-	if dpkg --get-selections | grep -q "^nmap[[:space:]]*install$" >/dev/null;then
-		notify "Nmap is installed, removing."
-		apt-get purge nmap
+	header "\nFirewall Lockdown"
+	command -v ufw >/dev/null
+	if [ $? -eq 0 ];then
+		success "UFW found"
+		read -p "[?] Enable UFW? [y/N] " -n 1 -r
+		echo
+		if [[ $REPLY =~ ^[Yy]$ ]]
+		then
+		ufw enable > /dev/null
+		success "UFW enabled."
+		else
+		notify "UFW not enabled."
+		fi
+	else
+		error "UFW not installed."
+		read -p "[?] Would you like to install & enable UFW? [y/N] " -n 1 -r
+		echo
+		if [[ $REPLY =~ ^[Yy]$ ]]
+		then
+			apt-get install -y ufw
+			ufw enable > /dev/null
+			success "UFW installed and enabled."
+		else
+			notify "UFW not installed."
+		fi
 	fi
-	if dpkg --get-selections | grep -q "^john[[:space:]]*install$" >/dev/null;then
-		notify "John is installed, removing."
-		apt-get purge john
-	fi
-	if dpkg --get-selections | grep -q "^rainbowcrack[[:space:]]*install$" >/dev/null;then
-		notify "rainbowcrack is installed, removing."
-		apt-get purge rainbowcrack
-	fi
-	if dpkg --get-selections | grep -q "^ophcrack[[:space:]]*install$" >/dev/null;then
-		notify "Ophcrack is installed, removing."
-		apt-get purge ophcrack
-	fi
-	if dpkg --get-selections | grep -q "^nc[[:space:]]*install$" >/dev/null;then
-		notify "Nc is installed, removing."
-		apt-get purge nc
-	fi
-	if dpkg --get-selections | grep -q "^netcat[[:space:]]*install$" >/dev/null;then
-		notify "Netcat is installed, removing."
-		apt-get purge netcat
-	fi
-	if dpkg --get-selections | grep -q "^hashcat[[:space:]]*install$" >/dev/null;then
-		notify "Hashcat is installed, removing."
-		apt-get purge hashcat
-	fi
-	if dpkg --get-selections | grep -q "^telnet[[:space:]]*install$" >/dev/null;then
-		warn "Telnet is installed, removing."
-		apt-get purge telnet
-	fi
-	apt-get purge netcat*
-
-	if dpkg --get-selections | grep -q "^samba[[:space:]]*install$" >/dev/null;then
-		notify "Samba is installed, make sure this is a required service."
-	fi
-	if dpkg --get-selections | grep -q "^bind9[[:space:]]*install$" >/dev/null;then
-		notify "Bind9 is installed, make sure this is a required service."
-	fi
-	if dpkg --get-selections | grep -q "^vsftpd[[:space:]]*install$" >/dev/null;then
-		notify "Vsftpd is installed, make sure this is a required service."
-	fi
-	if dpkg --get-selections | grep -q "^apache2[[:space:]]*install$" >/dev/null;then
-		notify "Apache2 is installed, make sure this is a required service."
-	fi
-	if dpkg --get-selections | grep -q "^nginx[[:space:]]*install$" >/dev/null;then
-		notify "Nginx is installed, make sure this is a required service."
-	fi
-	if dpkg --get-selections | grep -q "^telnet[[:space:]]*install$" >/dev/null;then
-		notify "Telnet is installed, make sure this is a required service."
-	fi
-	success "Displaying other active services:"
-	service --status-all | grep '+'
-	echo ""
-}
-
-function find_media()
-{
-	chkdir="/home/"
-	dmpfile="/home/${CURRENT_USER}/media_files.txt"
-	sarray=()	
-	header "Checking for media files in ${chkdir}"
-	success "Checking txt files."
-	echo "">$dmpfile
-	sarray=($(find $chkdir -type f -name "*.txt" | tee -a $dmpfile))
-	echo "Found ${#sarray[@]}"
-	success "Checking mp4 files."
-	sarray=($(find $chkdir -type f -name "*.mp4" | tee -a  $dmpfile))
-	echo "Found ${#sarray[@]}"
-	success "Checking mp3 files."
-	sarray=($(find $chkdir -type f -name "*.mp3" | tee -a  $dmpfile))
-	echo "Found ${#sarray[@]}"	
-	success "Checking ogg files."
-	sarray=($(find $chkdir -type f -name "*.ogg" | tee -a $dmpfile))
-	echo "Found ${#sarray[@]}"
-	success "Checking wav files."
-	sarray=($(find $chkdir -type f -name "*.wav" | tee -a $dmpfile))
-	echo "Found ${#sarray[@]}"
-	success "Checking png files."
-	sarray=($(find $chkdir -type f -name "*.png" | tee -a  $dmpfile))
-	echo "Found ${#sarray[@]}"
-	success "Checking jpg files."
-	sarray=($(find $chkdir -type f -name "*.jpg" | tee -a  $dmpfile))
-	echo "Found ${#sarray[@]} jpg"	
-	sarray=($(find $chkdir -type f -name "*.jpeg" | tee -a  $dmpfile)) 
-	echo "Found ${#sarray[@]} jpeg"
-	success "Checking gif files."
-	sarray=($(find $chkdir -type f -name "*.gif" | tee -a  $dmpfile))
-	echo "Found ${#sarray[@]}"	
-	success "Checking mov files."
-	sarray=($(find $chkdir -type f -name "*.mov" | tee -a  $dmpfile))
-	echo "Found ${#sarray[@]}"
-	printf "\n"
-	notify "Saving file paths to ${dmpfile}"	
-	
 }
 
 
-if [ "$1" == "-a" ];then
-success "Running in auto script mode."
-ssh_lockdown
-enable_ufw
-enable_av
-kernel_lockdown
-check_bad_programs
-ask_to_install_updates
-find_media
-else
-ssh_lockdown
-enable_ufw
-enable_av
-kernel_lockdown
-user_lockdown
-check_configs
-check_bad_programs
-ask_to_install_updates
-find_media
+# Main Modes
+function mode_auto(){
+	# sudo ./lockdown.sh -a
+	success "RUN MODE: AUTOMATIC (just y/n prompts)"
+
+	disable_aliases
+	choose_editor
+	ssh_lockdown
+	kernel_lockdown
+	user_lockdown
+	check_configs
+	check_bad_programs
+	check_services
+	enable_ufw
+	#enable_av		# Disabled for time
+	#check_rootkits # Disabled for time
+	install_updates
+	find_media 
+}
+function mode_autoOffline(){
+	# sudo ./lockdown.sh -o
+	success "RUN MODE: OFFLINE"
+
+	#choose_editor
+	ssh_lockdown
+	kernel_lockdown
+	#user_lockdown
+	#check_configs
+	check_bad_programs
+	check_services
+	#enable_ufw
+	#enable_av		# Disabled for time
+	#install_updates
+	#find_media 	# Disabled for CCDC
+}
+function mode_userLockdown(){
+	# sudo ./lockdown.sh -u
+	success "RUN MODE: USER LOCKDOWN"
+
+	user_lockdown
+}
+function mode_avScan(){
+	# sudo ./lockdown.sh -s
+	success "RUN MODE: AV/ROOTKIT SCAN (SLOW!)"
+
+	enable_av
+	check_rootkits
+}
+function mode_help(){
+    echo "Specify an option:"
+	echo "-a: Auto mode, default (recommended)"
+	echo "-o: Auto mode, offline boxes only"
+	echo "-u: User lockdown steps only"
+	echo "-s: Scan for viruses/rootkits only"
+	exit 0
+}
+
+# Main runtime code
+if [ "$EUID" -ne 0 ]
+  then echo "Please run as root: sudo ./lockdown.sh"
+  exit 1
 fi
 
+CURRENT_USER=$(whoami)
+
+echo
+header "Linux Lockdown Script"
+echo "Authors.......: TNAR5, colonket, ferdinand"
+echo "Version.......: 1.3"
+echo "OS............: $(hostnamectl | grep "Operating System" | awk -F ": " '{print $2}')"
+echo "Executing User: $CURRENT_USER"
+printf "\n\n"
+
+# no args provided, help menu
+if [[ $# -eq 0 ]] ; then
+	mode_help
+fi
+
+# mandatory readme
+read -p "[?] Have you read the README and the Forensics Questions? [y/N]" -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]];then
+	heart "Thank you for reading the info!" 
+	echo
+else
+	error "Please read the files on the desktop to make sure that the script is not messing with anything essential."
+	exit 1
+fi
+
+# args for different options
+case "$1" in
+	-a) 	mode_auto;;
+	-o) 	mode_autoOffline;;
+	-u) 	mode_userLockdown;;
+	-s)		mode_avScan;;
+	*)		mode_help;;
+esac
+
 header "\nThings left to do:"
-notify "~Update kernel"
+notify "Secure Root - Change root password and disable if allowed!"
+notify "Update kernel"
+notify "Update the APT Package Manager Source (Settings > Software and Updates > Download From)"
 notify "Pam cracklib password requirements/logging"
 notify "Discover rootkits/backdoors"
 notify "Check file permissions"
 notify "Check init scripts"
-notify "Set GUI update options for package manager bc idk"
 notify "Web browser updates and security"
 notify "ADD USERS NOT IN THE LIST"
-notify "Win"
+notify "Win - Good Luck! :D"
 
-success "Script finished exiting."
+success "Script finished execution."
 exit 0
